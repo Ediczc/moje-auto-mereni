@@ -1,0 +1,230 @@
+<!doctype html>
+<html lang="cs">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Moje auto · Měření</title>
+<meta name="theme-color" content="#141a26">
+<style>
+/* One-column phone tool: status, big read button, results, save, log. */
+:root{
+  color-scheme: dark;
+  --bg:#141a26; --glass:rgba(255,255,255,.07); --line:rgba(255,255,255,.13);
+  --fg:#eef2f8; --muted:rgba(226,232,244,.66); --faint:rgba(226,232,244,.42);
+  --accent:#3d8bff; --good:#5ad69a; --warn:#ffb14a; --bad:#ff6b6b;
+  --font:-apple-system,BlinkMacSystemFont,"SF Pro Text",system-ui,sans-serif;
+  --mono:ui-monospace,"SF Mono",Menlo,monospace;
+}
+*{box-sizing:border-box}
+html{background:var(--bg)}
+body{margin:0;min-height:100vh;color:var(--fg);font-family:var(--font);font-size:15px;line-height:1.45;-webkit-font-smoothing:antialiased;
+  background:radial-gradient(60% 40% at 85% 0%,rgba(61,139,255,.28),transparent 70%),radial-gradient(50% 35% at 0% 100%,rgba(132,94,255,.18),transparent 70%),var(--bg);
+  padding:calc(16px + env(safe-area-inset-top,0px)) max(16px,env(safe-area-inset-right,0px)) calc(28px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px))}
+button,input,select{font:inherit;color:inherit}
+:focus-visible{outline:2px solid #8ab8ff;outline-offset:2px}
+.wrap{max-width:560px;margin:0 auto;display:flex;flex-direction:column;gap:14px}
+h1{margin:4px 0 0;font-size:28px;font-weight:700;letter-spacing:-.02em}
+.sub{margin:0;color:var(--muted)}
+.card{background:var(--glass);border:1px solid var(--line);border-radius:20px;padding:16px;backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px)}
+.status{display:flex;align-items:center;gap:10px}
+.dot{width:10px;height:10px;border-radius:50%;background:var(--faint);flex:0 0 auto}
+.dot.ok{background:var(--good);box-shadow:0 0 10px var(--good)}
+.dot.busy{background:var(--warn);animation:bl 1s infinite}
+.dot.err{background:var(--bad)}
+@keyframes bl{50%{opacity:.3}}
+.status b{font-weight:600}
+.status small{display:block;color:var(--muted)}
+.btn{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;min-height:54px;border-radius:16px;border:1px solid var(--line);background:rgba(255,255,255,.07);font-weight:600;font-size:16px;cursor:pointer}
+.btn.primary{background:linear-gradient(180deg,#5096ff,#2a6ff0);border-color:rgba(160,200,255,.4);font-size:17px;min-height:62px}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.row{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.res{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.res .card{padding:14px}
+.k{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--faint)}
+.v{font-size:32px;font-weight:600;letter-spacing:-.02em;margin-top:4px;font-variant-numeric:tabular-nums;white-space:nowrap}
+.v small{font-size:15px;color:var(--muted);font-weight:500;margin-left:3px}
+.d{font-size:12.5px;color:var(--muted);margin-top:2px}
+.v.na{color:var(--faint);font-size:22px}
+label.f{display:flex;align-items:center;justify-content:space-between;gap:10px}
+select,input[type=text]{background:rgba(0,0,0,.25);border:1px solid var(--line);border-radius:12px;min-height:44px;padding:0 12px}
+input[type=text]{width:100%;font-family:var(--mono);text-transform:uppercase}
+.log{font-family:var(--mono);font-size:11.5px;line-height:1.5;white-space:pre-wrap;word-break:break-all;max-height:320px;overflow:auto;background:rgba(0,0,0,.3);border-radius:12px;padding:10px;margin-top:10px;color:#cfd8e6}
+.log .tx{color:#8ab8ff}.log .er{color:var(--bad)}.log .ok{color:var(--good)}
+details summary{cursor:pointer;font-weight:600;min-height:32px;display:flex;align-items:center}
+.note{font-size:12.5px;color:var(--muted);margin:0}
+.warnbox{border-color:rgba(255,177,74,.5);background:rgba(255,177,74,.08)}
+.hist{list-style:none;margin:8px 0 0;padding:0;font-size:13px}
+.hist li{display:flex;justify-content:space-between;gap:8px;padding:7px 0;border-top:1px solid var(--line);font-variant-numeric:tabular-nums}
+.hist li:first-child{border-top:0}
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translate(-50%,20px);opacity:0;background:#1f2a3d;border:1px solid var(--line);padding:10px 16px;border-radius:999px;font-weight:600;transition:all .3s;pointer-events:none;max-width:calc(100% - 32px);text-align:center}
+.toast.show{opacity:1;transform:translate(-50%,0)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Měření z auta</h1>
+    <p class="sub">VW ID.4 · vLinker MC+ · testovací verze</p>
+  </header>
+
+  <div class="card warnbox" id="noBt" hidden>
+    <b>Tenhle prohlížeč neumí Bluetooth.</b>
+    <p class="note" style="margin-top:6px">Otevři stránku v aplikaci <b>Bluefy</b> (Safari na iPhonu Bluetooth z webu nepodporuje).</p>
+  </div>
+
+  <div class="card status">
+    <span class="dot" id="dot"></span>
+    <div><b id="stTitle">Nepřipojeno</b><small id="stSub">Zapni auto (stačí probudit), vLinker v zásuvce OBD.</small></div>
+  </div>
+
+  <div class="row">
+    <button class="btn" id="btnConnect" type="button">Připojit vLinker</button>
+    <button class="btn" id="btnDisconnect" type="button" disabled>Odpojit</button>
+  </div>
+  <button class="btn primary" id="btnRead" type="button" disabled>Přečíst baterii a tachometr</button>
+
+  <div class="res">
+    <div class="card"><div class="k">Stav baterie</div><div class="v na" id="vSoh">–</div><div class="d" id="dSoh">využitelná kapacita</div></div>
+    <div class="card"><div class="k">Tachometr</div><div class="v na" id="vOdo">–</div><div class="d" id="dOdo">z auta</div></div>
+  </div>
+
+  <div class="card">
+    <label class="f" for="nominal"><span>Jmenovitá kapacita baterie</span>
+      <select id="nominal"><option value="77">77 kWh (Pro / Pro Performance)</option><option value="52">52 kWh (Pure)</option></select>
+    </label>
+    <p class="note" style="margin-top:8px">Stav baterie = změřená využitelná kapacita ÷ jmenovitá. Když si nejsi jistý verzí, nech 77 a porovnáme.</p>
+  </div>
+
+  <div class="row">
+    <button class="btn" id="btnShare" type="button" disabled>Uložit do Souborů</button>
+    <button class="btn" id="btnCopy" type="button" disabled>Kopírovat výsledek</button>
+  </div>
+
+  <div class="card">
+    <div class="k">Poslední měření na tomto telefonu</div>
+    <ul class="hist" id="hist"><li><span class="note">Zatím nic.</span></li></ul>
+  </div>
+
+  <div class="card">
+    <details id="logBox">
+      <summary>Záznam komunikace</summary>
+      <div class="log" id="log" aria-live="polite"></div>
+      <div class="row" style="margin-top:10px">
+        <button class="btn" id="btnCopyLog" type="button">Kopírovat záznam</button>
+        <button class="btn" id="btnClearLog" type="button">Vymazat</button>
+      </div>
+    </details>
+  </div>
+
+  <div class="card">
+    <details>
+      <summary>Vlastní příkaz (pro zkoušení)</summary>
+      <p class="note" style="margin:6px 0 10px">Pošle příkaz přímo adaptéru, např. <code>ATRV</code> (napětí) nebo <code>222AB4</code>. Jen čtecí příkazy (začínají 22, 01, AT).</p>
+      <div class="row"><input type="text" id="cmd" placeholder="ATRV" autocomplete="off" autocapitalize="characters" spellcheck="false"><button class="btn" id="btnCmd" type="button" disabled>Odeslat</button></div>
+    </details>
+  </div>
+
+  <p class="note">Stránka jen čte data, do auta nic nezapisuje. Neměř za jízdy. Postup čtení kapacity podle CellPulse (ID.4 2021); tachometr je zatím pokus, údaj porovnej s budíky.</p>
+</div>
+<div class="toast" id="toast" role="status"></div>
+
+<script>
+const $=s=>document.querySelector(s);
+const SERVICES=['e7810a71-73ae-499d-8c15-faa9aef0c3f2',0xfff0,0xffe0,0x18f0,0xfff1];
+let dev=null,wChar=null,nChar=null,rxBuf='',waiter=null,busy=false,last=null;
+const enc=new TextEncoder(),dec=new TextDecoder();
+
+function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('show');clearTimeout(toast.t);toast.t=setTimeout(()=>t.classList.remove('show'),2500)}
+function log(msg,cls){const l=$('#log'),ts=new Date().toLocaleTimeString('cs-CZ');const line=document.createElement('div');if(cls)line.className=cls;line.textContent=`${ts} ${msg}`;l.appendChild(line);l.scrollTop=l.scrollHeight}
+function status(state,title,sub){const d=$('#dot');d.className='dot'+(state?' '+state:'');$('#stTitle').textContent=title;if(sub!==undefined)$('#stSub').textContent=sub}
+function setUi(){const c=!!wChar;$('#btnConnect').disabled=c||busy;$('#btnDisconnect').disabled=!c||busy;$('#btnRead').disabled=!c||busy;$('#btnCmd').disabled=!c||busy;$('#btnShare').disabled=!last;$('#btnCopy').disabled=!last}
+
+if(!navigator.bluetooth){$('#noBt').hidden=false;$('#btnConnect').disabled=true}
+
+async function connect(){
+  try{
+    busy=true;setUi();status('busy','Hledám adaptér…','Vyber v seznamu vLinker.');
+    dev=await navigator.bluetooth.requestDevice({acceptAllDevices:true,optionalServices:SERVICES});
+    dev.addEventListener('gattserverdisconnected',onDisc);
+    log(`Zařízení: ${dev.name||'(bez názvu)'}`);
+    const server=await dev.gatt.connect();
+    const services=await server.getPrimaryServices();
+    for(const s of services){
+      let chars=[];try{chars=await s.getCharacteristics()}catch(e){continue}
+      for(const c of chars){const p=c.properties;log(`  služba ${s.uuid.slice(0,8)} char ${c.uuid.slice(0,8)} ${p.write?'W':''}${p.writeWithoutResponse?'w':''}${p.notify?'N':''}${p.indicate?'I':''}`);
+        if(!nChar&&(p.notify||p.indicate))nChar=c;if(!wChar&&(p.write||p.writeWithoutResponse))wChar=c}
+      if(wChar&&nChar)break;
+    }
+    if(!wChar||!nChar)throw new Error('Nenašel jsem komunikační kanál adaptéru. Pošli mi záznam komunikace.');
+    await nChar.startNotifications();
+    nChar.addEventListener('characteristicvaluechanged',e=>{rxBuf+=dec.decode(e.target.value);if(waiter&&rxBuf.includes('>')){const r=rxBuf;rxBuf='';const w=waiter;waiter=null;w.res(r)}});
+    status('ok','Připojeno',dev.name||'adaptér');log('Připojeno.','ok');
+  }catch(e){log('Chyba připojení: '+e.message,'er');status('err','Nepřipojeno',e.name==='NotFoundError'?'Výběr zrušen.':e.message);dev=null;wChar=null;nChar=null}
+  finally{busy=false;setUi()}
+}
+function onDisc(){log('Adaptér odpojen.','er');wChar=null;nChar=null;status('','Nepřipojeno','Spojení se ztratilo.');setUi()}
+async function disconnect(){try{dev&&dev.gatt.connected&&dev.gatt.disconnect()}catch(e){}onDisc()}
+
+async function send(cmd,timeout=4000){
+  if(!wChar)throw new Error('Nepřipojeno');
+  rxBuf='';log('> '+cmd,'tx');
+  const data=enc.encode(cmd+'\r');
+  const p=new Promise((res,rej)=>{waiter={res};setTimeout(()=>{if(waiter){waiter=null;rej(new Error('Adaptér neodpověděl ('+cmd+')'))}},timeout)});
+  for(let i=0;i<data.length;i+=20){const chunk=data.slice(i,i+20);if(wChar.properties.writeWithoutResponse)await wChar.writeValueWithoutResponse(chunk);else await wChar.writeValue(chunk)}
+  const raw=await p;const clean=raw.replace(/>/g,'').replace(/\r/g,'\n').split('\n').map(s=>s.trim()).filter(Boolean);
+  log('< '+(clean.join(' | ')||'(prázdné)'));return clean;
+}
+// join an ISO-TP answer into one hex string (handles "0:" frame prefixes and length lines)
+function hexOf(lines){return lines.filter(l=>!/^(SEARCHING|BUS INIT|OK|ELM|STOPPED)/i.test(l)).filter(l=>!/^[0-9A-F]{3}$/i.test(l.replace(/\s/g,''))).map(l=>l.replace(/^[0-9A-F]:\s*/i,'').replace(/\s/g,'')).join('').toUpperCase()}
+function payload(lines,sid){const h=hexOf(lines);const i=h.indexOf(sid);if(i<0){const neg=h.match(/7F22([0-9A-F]{2})/);return {err:neg?('záporná odpověď 7F 22 '+neg[1]):(h.includes('NODATA')?'žádná data':'neočekávaná odpověď')}}return {hex:h.slice(i+sid.length)}}
+
+async function readAll(){
+  busy=true;setUi();status('busy','Čtu z auta…','Chvilku to trvá.');$('#logBox').open=true;
+  const out={cas:new Date().toISOString(),zdroj:'vLinker MC+',jmenovita_kwh:+$('#nominal').value};
+  try{
+    await send('ATZ',6000);await new Promise(r=>setTimeout(r,800));
+    for(const c of ['ATE0','ATL0','ATS0','ATH0','ATAT1','ATSP6','ATSH710','ATCRA77A','ATFCSH710','ATFCSD300000','ATFCSM1'])await send(c);
+    try{await send('ATRV')}catch(e){}
+    const s=await send('1003',5000);if(!hexOf(s).includes('5003'))log('Rozšířená relace nepotvrzena, zkouším i tak.','er');
+    // usable capacity -> SoH
+    const a=payload(await send('222AB2',5000),'622AB2');
+    if(a.hex&&a.hex.length>=4){const raw=parseInt(a.hex.slice(0,4),16),kwh=raw*50/1000,soh=kwh/out.jmenovita_kwh*100;out.vyuzitelna_kwh=+kwh.toFixed(2);out.soh_pct=+soh.toFixed(1);out.raw_2AB2=a.hex;
+      $('#vSoh').className='v';$('#vSoh').innerHTML=`${soh.toLocaleString('cs-CZ',{maximumFractionDigits:1})}<small>%</small>`;$('#dSoh').textContent=`${kwh.toLocaleString('cs-CZ',{maximumFractionDigits:2})} kWh z ${out.jmenovita_kwh} kWh`;log(`Kapacita ${kwh} kWh → SoH ${soh.toFixed(1)} %`,'ok')}
+    else{$('#dSoh').textContent='nepodařilo se: '+(a.err||'krátká odpověď');log('Kapacita: '+(a.err||'krátká odpověď'),'er')}
+    // odometer: common VAG DID 295A (3 bytes, km) – experimental on MEB
+    const o=payload(await send('22295A',5000),'62295A');
+    if(o.hex&&o.hex.length>=6){const km=parseInt(o.hex.slice(0,6),16);out.tachometr_km=km;out.raw_295A=o.hex;
+      $('#vOdo').className='v';$('#vOdo').innerHTML=`${km.toLocaleString('cs-CZ')}<small>km</small>`;$('#dOdo').textContent='porovnej s budíky';log(`Tachometr ${km} km`,'ok')}
+    else{$('#dOdo').textContent='nepodařilo se: '+(o.err||'krátká odpověď');log('Tachometr: '+(o.err||'krátká odpověď'),'er')}
+    if(out.soh_pct!=null||out.tachometr_km!=null){last=out;saveHist(out);status('ok','Hotovo','Výsledek můžeš uložit do Souborů.');toast('Změřeno')}
+    else status('err','Nic se nepřečetlo','Pošli mi záznam komunikace.');
+  }catch(e){log('Chyba: '+e.message,'er');status('err','Chyba čtení',e.message)}
+  finally{busy=false;setUi()}
+}
+
+function csvOf(o){const k=['cas','soh_pct','vyuzitelna_kwh','jmenovita_kwh','tachometr_km','raw_2AB2','raw_295A','zdroj'];return k.join(';')+'\n'+k.map(x=>o[x]??'').join(';')+'\n'}
+async function shareResult(){
+  if(!last)return;const name=`mereni-${last.cas.slice(0,16).replace(/[:T]/g,'-')}.json`;const blob=new Blob([JSON.stringify(last,null,2)],{type:'application/json'});
+  try{const file=new File([blob],name,{type:'application/json'});if(navigator.canShare&&navigator.canShare({files:[file]})){await navigator.share({files:[file],title:'Měření z auta'});return}}catch(e){if(e.name==='AbortError')return;log('Sdílení: '+e.message,'er')}
+  try{const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();a.remove();toast('Stahuji soubor')}catch(e){toast('Uložení nejde, použij Kopírovat');log('Stažení: '+e.message,'er')}
+}
+async function copyText(t,okMsg){try{await navigator.clipboard.writeText(t);toast(okMsg)}catch(e){const ta=document.createElement('textarea');ta.value=t;document.body.appendChild(ta);ta.select();try{document.execCommand('copy');toast(okMsg)}catch(_){toast('Kopírování nejde')}ta.remove()}}
+
+function loadHist(){try{return JSON.parse(localStorage.getItem('mereni')||'[]')}catch(e){return[]}}
+function saveHist(o){const h=loadHist();h.unshift(o);try{localStorage.setItem('mereni',JSON.stringify(h.slice(0,20)))}catch(e){}renderHist()}
+function renderHist(){const h=loadHist();$('#hist').innerHTML=h.length?h.map(o=>`<li><span>${new Date(o.cas).toLocaleString('cs-CZ',{day:'numeric',month:'numeric',hour:'2-digit',minute:'2-digit'})}</span><span>${o.soh_pct!=null?o.soh_pct.toLocaleString('cs-CZ')+' %':'–'} · ${o.tachometr_km!=null?o.tachometr_km.toLocaleString('cs-CZ')+' km':'–'}</span></li>`).join(''):'<li><span class="note">Zatím nic.</span></li>'}
+
+$('#btnConnect').addEventListener('click',connect);
+$('#btnDisconnect').addEventListener('click',disconnect);
+$('#btnRead').addEventListener('click',readAll);
+$('#btnShare').addEventListener('click',shareResult);
+$('#btnCopy').addEventListener('click',()=>last&&copyText(csvOf(last),'Výsledek zkopírován'));
+$('#btnCopyLog').addEventListener('click',()=>copyText([...$('#log').children].map(d=>d.textContent).join('\n'),'Záznam zkopírován'));
+$('#btnClearLog').addEventListener('click',()=>{$('#log').innerHTML=''});
+$('#btnCmd').addEventListener('click',async()=>{const c=$('#cmd').value.trim().toUpperCase();if(!c)return;if(!/^(AT|22|01|09|10 ?03|1003)/.test(c.replace(/\s/g,''))){toast('Povolené jsou jen čtecí příkazy');return}busy=true;setUi();try{await send(c.replace(/\s/g,''),6000)}catch(e){log(e.message,'er')}busy=false;setUi()});
+try{const n=localStorage.getItem('nominal');if(n)$('#nominal').value=n}catch(e){}
+$('#nominal').addEventListener('change',e=>{try{localStorage.setItem('nominal',e.target.value)}catch(_){}});
+renderHist();setUi();
+</script>
+</body>
+</html>
