@@ -64,7 +64,7 @@ details summary{cursor:pointer;font-weight:600;min-height:32px;display:flex;alig
 <div class="wrap">
   <header>
     <h1>Měření z auta</h1>
-    <p class="sub">VW ID.4 · vLinker MC+ · testovací verze 4</p>
+    <p class="sub">VW ID.4 · vLinker MC+ · testovací verze 5</p>
   </header>
 
   <div class="card warnbox" id="noBt" hidden>
@@ -99,6 +99,7 @@ details summary{cursor:pointer;font-weight:600;min-height:32px;display:flex;alig
   <div class="res">
     <div class="card"><div class="k">Stav baterie</div><div class="v na" id="vSoh">–</div><div class="d" id="dSoh">využitelná kapacita</div></div>
     <div class="card"><div class="k">Tachometr</div><div class="v na" id="vOdo">–</div><div class="d" id="dOdo">z auta</div></div>
+    <div class="card" style="grid-column:1/-1"><div class="k">Nabití baterie (BMS)</div><div class="v na" id="vSoc">–</div><div class="d">bonus · hrubá hodnota z baterie, může se lišit od displeje</div></div>
   </div>
 
   <div class="card">
@@ -213,12 +214,17 @@ async function readAll(){
     if(a.hex&&a.hex.length>=4){const raw=parseInt(a.hex.slice(0,4),16),kwh=raw*50/1000,soh=kwh/out.jmenovita_kwh*100;out.vyuzitelna_kwh=+kwh.toFixed(2);out.soh_pct=+soh.toFixed(1);out.raw_2AB2=a.hex;
       $('#vSoh').className='v';$('#vSoh').innerHTML=`${soh.toLocaleString('cs-CZ',{maximumFractionDigits:1})}<small>%</small>`;$('#dSoh').textContent=`${kwh.toLocaleString('cs-CZ',{maximumFractionDigits:2})} kWh z ${out.jmenovita_kwh} kWh`;log(`Kapacita ${kwh} kWh → SoH ${soh.toFixed(1)} %`,'ok')}
     else{$('#dSoh').textContent='nepodařilo se: '+(a.err||'krátká odpověď');log('Kapacita: '+(a.err||'krátká odpověď'),'er')}
+    // state of charge from the BMS (29-bit address, decoding as in evDash)
+    try{for(const c of ['ATSP7','ATSH17FC007B','ATCRA17FE007B','ATFCSH17FC007B','ATFCSD300000','ATFCSM1'])await send(c,5000);
+      const q=payload(await send('22028C',5000),'62028C');
+      if(q.hex&&q.hex.length>=2){const soc=parseInt(q.hex.slice(0,2),16)/2.5;out.nabiti_bms_pct=+soc.toFixed(1);$('#vSoc').className='v';$('#vSoc').innerHTML=`${soc.toLocaleString('cs-CZ',{maximumFractionDigits:1})}<small>%</small>`;log(`Nabití (BMS) ${soc.toFixed(1)} %`,'ok')}
+      else log('Nabití: '+q.err,'er')}catch(e){log('Nabití: '+errText(e),'er')}
     // odometer: try several known ways, keep the first that answers
     const odo=await readOdometer();
     if(odo){out.tachometr_km=odo.km;out.tachometr_zpusob=odo.how;out.raw_tachometr=odo.raw;
       $('#vOdo').className='v';$('#vOdo').innerHTML=`${odo.km.toLocaleString('cs-CZ')}<small>km</small>`;$('#dOdo').textContent='způsob: '+odo.how+' · porovnej s budíky';log(`Tachometr ${odo.km} km (${odo.how})`,'ok')}
     else{$('#dOdo').textContent='žádný způsob nevyšel – pošli záznam';log('Tachometr: žádný způsob nevyšel','er')}
-    if(out.soh_pct!=null||out.tachometr_km!=null){last=out;saveHist(out);status('ok','Hotovo','Výsledek můžeš uložit do Souborů.');toast('Změřeno')}
+    if(out.soh_pct!=null||out.tachometr_km!=null||out.nabiti_bms_pct!=null){last=out;saveHist(out);status('ok','Hotovo','Výsledek můžeš uložit do Souborů.');toast('Změřeno')}
     else status('err','Nic se nepřečetlo','Pošli mi záznam komunikace.');
   }catch(e){log('Chyba: '+e.message,'er');status('err','Chyba čtení',e.message)}
   finally{busy=false;setUi()}
@@ -226,7 +232,9 @@ async function readAll(){
 
 async function readOdometer(){
   const tries=[
-    {how:'OBD 01 A6',setup:['ATSH7DF','ATCRA','ATFCSH7DF'],cmd:'01A6',sid:'41A6',dec:h=>h.length>=8?parseInt(h.slice(0,8),16)/10:null},
+    {how:'MEB 17FC0076 / 295A',setup:['ATSP7','ATSH17FC0076','ATCRA17FE0076','ATFCSH17FC0076','ATFCSD300000','ATFCSM1'],cmd:'22295A',sid:'62295A',dec:h=>h.length>=6?parseInt(h.slice(0,6),16):null},
+    {how:'MEB 17FC0076 / 295A po 1003',setup:['1003'],cmd:'22295A',sid:'62295A',dec:h=>h.length>=6?parseInt(h.slice(0,6),16):null},
+    {how:'OBD 01 A6',setup:['ATSP6','ATSH7DF','ATCRA','ATFCSH7DF'],cmd:'01A6',sid:'41A6',dec:h=>h.length>=8?parseInt(h.slice(0,8),16)/10:null},
     {how:'přístroje 714 / 2203',setup:['ATSH714','ATCRA77E','ATFCSH714','1003'],cmd:'222203',sid:'622203',dec:h=>h.length>=6?parseInt(h.slice(0,6),16):null},
     {how:'přístroje 714 / 295A',setup:[],cmd:'22295A',sid:'62295A',dec:h=>h.length>=6?parseInt(h.slice(0,6),16):null},
     {how:'pohon 7E0 / 295A',setup:['ATSH7E0','ATCRA7E8','ATFCSH7E0','1003'],cmd:'22295A',sid:'62295A',dec:h=>h.length>=6?parseInt(h.slice(0,6),16):null},
@@ -241,7 +249,7 @@ async function readOdometer(){
   }
   return null;
 }
-function csvOf(o){const k=['cas','soh_pct','vyuzitelna_kwh','jmenovita_kwh','tachometr_km','tachometr_zpusob','raw_2AB2','raw_tachometr','zdroj'];return k.join(';')+'\n'+k.map(x=>o[x]??'').join(';')+'\n'}
+function csvOf(o){const k=['cas','soh_pct','vyuzitelna_kwh','jmenovita_kwh','nabiti_bms_pct','tachometr_km','tachometr_zpusob','raw_2AB2','raw_tachometr','zdroj'];return k.join(';')+'\n'+k.map(x=>o[x]??'').join(';')+'\n'}
 async function shareResult(){
   if(!last)return;const name=`mereni-${last.cas.slice(0,16).replace(/[:T]/g,'-')}.json`;const blob=new Blob([JSON.stringify(last,null,2)],{type:'application/json'});
   try{const file=new File([blob],name,{type:'application/json'});if(navigator.canShare&&navigator.canShare({files:[file]})){await navigator.share({files:[file],title:'Měření z auta'});return}}catch(e){if(e.name==='AbortError')return;log('Sdílení: '+e.message,'er')}
