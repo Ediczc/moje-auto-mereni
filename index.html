@@ -78,8 +78,19 @@ details summary{cursor:pointer;font-weight:600;min-height:32px;display:flex;alig
   </div>
 
   <div class="row">
-    <button class="btn" id="btnConnect" type="button">Připojit vLinker</button>
+    <button class="btn" id="btnConnect" type="button">Hledat vLinker</button>
     <button class="btn" id="btnDisconnect" type="button" disabled>Odpojit</button>
+  </div>
+  <button class="btn" id="btnConnectAll" type="button">Nenašlo se? Ukázat všechna zařízení</button>
+  <div class="card warnbox" id="help" hidden>
+    <b>Seznam se neukázal nebo je prázdný?</b>
+    <ol class="note" style="margin:8px 0 0;padding-left:18px">
+      <li><b>Zavři úplně Car Scanner a evDash</b> (přejeď je nahoru v přepínači aplikací). vLinker zvládne jen jedno spojení a když je připojený jinde, není vidět.</li>
+      <li>Povol Bluefy Bluetooth: <b>Nastavení → Bluefy → Bluetooth</b> (nebo Nastavení → Soukromí → Bluetooth).</li>
+      <li>Auto musí být probuzené (odemknout, otevřít dveře, ideálně zapnout). Při spícím autě vLinker usíná.</li>
+      <li>V Nastavení iPhonu → Bluetooth se vLinker <b>nikdy neukáže</b>, to je normální. Hledají ho jen aplikace.</li>
+      <li>Pomoct může vytáhnout vLinker ze zásuvky a za 5 vteřin ho vrátit.</li>
+    </ol>
   </div>
   <button class="btn primary" id="btnRead" type="button" disabled>Přečíst baterii a tachometr</button>
 
@@ -137,14 +148,21 @@ const enc=new TextEncoder(),dec=new TextDecoder();
 function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('show');clearTimeout(toast.t);toast.t=setTimeout(()=>t.classList.remove('show'),2500)}
 function log(msg,cls){const l=$('#log'),ts=new Date().toLocaleTimeString('cs-CZ');const line=document.createElement('div');if(cls)line.className=cls;line.textContent=`${ts} ${msg}`;l.appendChild(line);l.scrollTop=l.scrollHeight}
 function status(state,title,sub){const d=$('#dot');d.className='dot'+(state?' '+state:'');$('#stTitle').textContent=title;if(sub!==undefined)$('#stSub').textContent=sub}
-function setUi(){const c=!!wChar;$('#btnConnect').disabled=c||busy;$('#btnDisconnect').disabled=!c||busy;$('#btnRead').disabled=!c||busy;$('#btnCmd').disabled=!c||busy;$('#btnShare').disabled=!last;$('#btnCopy').disabled=!last}
+function setUi(){const c=!!wChar;$('#btnConnect').disabled=c||busy;$('#btnConnectAll').disabled=c||busy||!navigator.bluetooth;$('#btnDisconnect').disabled=!c||busy;$('#btnRead').disabled=!c||busy;$('#btnCmd').disabled=!c||busy;$('#btnShare').disabled=!last;$('#btnCopy').disabled=!last}
 
 if(!navigator.bluetooth){$('#noBt').hidden=false;$('#btnConnect').disabled=true}
+log('Prohlížeč: '+navigator.userAgent);log('Web Bluetooth: '+(navigator.bluetooth?'ano':'NE'));
+if(navigator.bluetooth&&navigator.bluetooth.getAvailability)navigator.bluetooth.getAvailability().then(a=>{log('Bluetooth dostupné: '+(a?'ano':'NE'),a?'ok':'er');if(!a){status('err','Bluetooth nedostupné','Zapni Bluetooth a povol ho pro Bluefy v Nastavení.');$('#help').hidden=false}}).catch(e=>log('getAvailability: '+e.message,'er'));
 
-async function connect(){
+const NAMES=['vLinker','VLINK','IOS-Vlink','V-LINK','Vgate','OBD','Android-Vlink'];
+async function connect(all){
+  let slow;
   try{
-    busy=true;setUi();status('busy','Hledám adaptér…','Vyber v seznamu vLinker.');
-    dev=await navigator.bluetooth.requestDevice({acceptAllDevices:true,optionalServices:SERVICES});
+    busy=true;setUi();$('#help').hidden=true;status('busy','Hledám adaptér…',all?'Vyber v seznamu vLinker (může mít i jiný název).':'Vyber v seznamu vLinker.');
+    slow=setTimeout(()=>{$('#help').hidden=false},6000);
+    const opts=all?{acceptAllDevices:true,optionalServices:SERVICES}:{filters:[...NAMES.map(n=>({namePrefix:n})),{services:['e7810a71-73ae-499d-8c15-faa9aef0c3f2']},{services:[0xfff0]},{services:[0xffe0]}],optionalServices:SERVICES};
+    log('Hledám: '+(all?'všechna zařízení':'podle názvu/služby'));
+    dev=await navigator.bluetooth.requestDevice(opts);clearTimeout(slow);
     dev.addEventListener('gattserverdisconnected',onDisc);
     log(`Zařízení: ${dev.name||'(bez názvu)'}`);
     const server=await dev.gatt.connect();
@@ -159,7 +177,7 @@ async function connect(){
     await nChar.startNotifications();
     nChar.addEventListener('characteristicvaluechanged',e=>{rxBuf+=dec.decode(e.target.value);if(waiter&&rxBuf.includes('>')){const r=rxBuf;rxBuf='';const w=waiter;waiter=null;w.res(r)}});
     status('ok','Připojeno',dev.name||'adaptér');log('Připojeno.','ok');
-  }catch(e){log('Chyba připojení: '+e.message,'er');status('err','Nepřipojeno',e.name==='NotFoundError'?'Výběr zrušen.':e.message);dev=null;wChar=null;nChar=null}
+  }catch(e){clearTimeout(slow);log('Chyba připojení: '+e.name+': '+e.message,'er');status('err','Nepřipojeno',(e.name==='NotFoundError'?'Nic nevybráno nebo nenalezeno. ':'')+e.message);$('#help').hidden=false;$('#logBox').open=true;dev=null;wChar=null;nChar=null}
   finally{busy=false;setUi()}
 }
 function onDisc(){log('Adaptér odpojen.','er');wChar=null;nChar=null;status('','Nepřipojeno','Spojení se ztratilo.');setUi()}
@@ -214,7 +232,7 @@ function loadHist(){try{return JSON.parse(localStorage.getItem('mereni')||'[]')}
 function saveHist(o){const h=loadHist();h.unshift(o);try{localStorage.setItem('mereni',JSON.stringify(h.slice(0,20)))}catch(e){}renderHist()}
 function renderHist(){const h=loadHist();$('#hist').innerHTML=h.length?h.map(o=>`<li><span>${new Date(o.cas).toLocaleString('cs-CZ',{day:'numeric',month:'numeric',hour:'2-digit',minute:'2-digit'})}</span><span>${o.soh_pct!=null?o.soh_pct.toLocaleString('cs-CZ')+' %':'–'} · ${o.tachometr_km!=null?o.tachometr_km.toLocaleString('cs-CZ')+' km':'–'}</span></li>`).join(''):'<li><span class="note">Zatím nic.</span></li>'}
 
-$('#btnConnect').addEventListener('click',connect);
+$('#btnConnect').addEventListener('click',()=>connect(false));$('#btnConnectAll').addEventListener('click',()=>connect(true));
 $('#btnDisconnect').addEventListener('click',disconnect);
 $('#btnRead').addEventListener('click',readAll);
 $('#btnShare').addEventListener('click',shareResult);
