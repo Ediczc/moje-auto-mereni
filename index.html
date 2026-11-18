@@ -64,7 +64,7 @@ details summary{cursor:pointer;font-weight:600;min-height:32px;display:flex;alig
 <div class="wrap">
   <header>
     <h1>Měření z auta</h1>
-    <p class="sub">VW ID.4 · vLinker MC+ · testovací verze 5</p>
+    <p class="sub">VW ID.4 · vLinker MC+ · verze 6</p>
   </header>
 
   <div class="card warnbox" id="noBt" hidden>
@@ -99,7 +99,7 @@ details summary{cursor:pointer;font-weight:600;min-height:32px;display:flex;alig
   <div class="res">
     <div class="card"><div class="k">Stav baterie</div><div class="v na" id="vSoh">–</div><div class="d" id="dSoh">využitelná kapacita</div></div>
     <div class="card"><div class="k">Tachometr</div><div class="v na" id="vOdo">–</div><div class="d" id="dOdo">z auta</div></div>
-    <div class="card" style="grid-column:1/-1"><div class="k">Nabití baterie (BMS)</div><div class="v na" id="vSoc">–</div><div class="d">bonus · hrubá hodnota z baterie, může se lišit od displeje</div></div>
+    <div class="card" style="grid-column:1/-1"><div class="k">Nabití baterie</div><div class="v na" id="vSoc">–</div><div class="d" id="dSoc">jako na displeji auta</div></div>
   </div>
 
   <div class="card">
@@ -138,7 +138,7 @@ details summary{cursor:pointer;font-weight:600;min-height:32px;display:flex;alig
     </details>
   </div>
 
-  <p class="note">Stránka jen čte data, do auta nic nezapisuje. Neměř za jízdy. Postup čtení kapacity podle CellPulse (ID.4 2021); tachometr je zatím pokus, údaj porovnej s budíky.</p>
+  <p class="note">Stránka jen čte data, do auta nic nezapisuje. Neměř za jízdy. Postup čtení kapacity podle CellPulse (ID.4 2021); tachometr (MEB 17FC0076) a nabití podle evDash, ověřeno na tomto autě 18. 11. 2026.</p>
 </div>
 <div class="toast" id="toast" role="status"></div>
 
@@ -217,7 +217,7 @@ async function readAll(){
     // state of charge from the BMS (29-bit address, decoding as in evDash)
     try{for(const c of ['ATSP7','ATSH17FC007B','ATCRA17FE007B','ATFCSH17FC007B','ATFCSD300000','ATFCSM1'])await send(c,5000);
       const q=payload(await send('22028C',5000),'62028C');
-      if(q.hex&&q.hex.length>=2){const soc=parseInt(q.hex.slice(0,2),16)/2.5;out.nabiti_bms_pct=+soc.toFixed(1);$('#vSoc').className='v';$('#vSoc').innerHTML=`${soc.toLocaleString('cs-CZ',{maximumFractionDigits:1})}<small>%</small>`;log(`Nabití (BMS) ${soc.toFixed(1)} %`,'ok')}
+      if(q.hex&&q.hex.length>=2){const raw=parseInt(q.hex.slice(0,2),16),soc=raw/2.5,disp=Math.min(100,Math.max(0,raw*0.4425-6.1947));out.nabiti_bms_pct=+soc.toFixed(1);out.nabiti_displej_pct=Math.round(disp);$('#vSoc').className='v';$('#vSoc').innerHTML=`${Math.round(disp)}<small>%</small>`;$('#dSoc').textContent=`jako na displeji auta · baterie hlásí ${soc.toLocaleString('cs-CZ',{maximumFractionDigits:1})} %`;log(`Nabití: displej ${disp.toFixed(1)} %, BMS ${soc.toFixed(1)} %`,'ok')}
       else log('Nabití: '+q.err,'er')}catch(e){log('Nabití: '+errText(e),'er')}
     // odometer: try several known ways, keep the first that answers
     const odo=await readOdometer();
@@ -249,7 +249,7 @@ async function readOdometer(){
   }
   return null;
 }
-function csvOf(o){const k=['cas','soh_pct','vyuzitelna_kwh','jmenovita_kwh','nabiti_bms_pct','tachometr_km','tachometr_zpusob','raw_2AB2','raw_tachometr','zdroj'];return k.join(';')+'\n'+k.map(x=>o[x]??'').join(';')+'\n'}
+function csvOf(o){const k=['cas','soh_pct','vyuzitelna_kwh','jmenovita_kwh','nabiti_displej_pct','nabiti_bms_pct','tachometr_km','tachometr_zpusob','raw_2AB2','raw_tachometr','zdroj'];return k.join(';')+'\n'+k.map(x=>o[x]??'').join(';')+'\n'}
 async function shareResult(){
   if(!last)return;const name=`mereni-${last.cas.slice(0,16).replace(/[:T]/g,'-')}.json`;const blob=new Blob([JSON.stringify(last,null,2)],{type:'application/json'});
   try{const file=new File([blob],name,{type:'application/json'});if(navigator.canShare&&navigator.canShare({files:[file]})){await navigator.share({files:[file],title:'Měření z auta'});return}}catch(e){if(e.name==='AbortError')return;log('Sdílení: '+e.message,'er')}
@@ -259,7 +259,7 @@ async function copyText(t,okMsg){try{await navigator.clipboard.writeText(t);toas
 
 function loadHist(){try{return JSON.parse(localStorage.getItem('mereni')||'[]')}catch(e){return[]}}
 function saveHist(o){const h=loadHist();h.unshift(o);try{localStorage.setItem('mereni',JSON.stringify(h.slice(0,20)))}catch(e){}renderHist()}
-function renderHist(){const h=loadHist();$('#hist').innerHTML=h.length?h.map(o=>`<li><span>${new Date(o.cas).toLocaleString('cs-CZ',{day:'numeric',month:'numeric',hour:'2-digit',minute:'2-digit'})}</span><span>${o.soh_pct!=null?o.soh_pct.toLocaleString('cs-CZ')+' %':'–'} · ${o.tachometr_km!=null?o.tachometr_km.toLocaleString('cs-CZ')+' km':'–'}</span></li>`).join(''):'<li><span class="note">Zatím nic.</span></li>'}
+function renderHist(){const h=loadHist();$('#hist').innerHTML=h.length?h.map(o=>`<li><span>${new Date(o.cas).toLocaleString('cs-CZ',{day:'numeric',month:'numeric',hour:'2-digit',minute:'2-digit'})}</span><span>SoH ${o.soh_pct!=null?o.soh_pct.toLocaleString('cs-CZ')+' %':'–'} · ${o.tachometr_km!=null?o.tachometr_km.toLocaleString('cs-CZ')+' km':'–'}${o.nabiti_displej_pct!=null?' · '+o.nabiti_displej_pct+' %':''}</span></li>`).join(''):'<li><span class="note">Zatím nic.</span></li>'}
 
 $('#btnConnect').addEventListener('click',()=>connect(false));$('#btnConnectAll').addEventListener('click',()=>connect(true));$('#btnConnectBare').addEventListener('click',()=>connect('bare'));$('#btnCopyLogTop').addEventListener('click',()=>copyText([...$('#log').children].map(d=>d.textContent).join('\n'),'Záznam zkopírován'));
 $('#btnDisconnect').addEventListener('click',disconnect);
