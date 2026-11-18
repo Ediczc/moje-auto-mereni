@@ -64,7 +64,7 @@ details summary{cursor:pointer;font-weight:600;min-height:32px;display:flex;alig
 <div class="wrap">
   <header>
     <h1>Měření z auta</h1>
-    <p class="sub">VW ID.4 · vLinker MC+ · testovací verze</p>
+    <p class="sub">VW ID.4 · vLinker MC+ · testovací verze 3</p>
   </header>
 
   <div class="card warnbox" id="noBt" hidden>
@@ -82,6 +82,8 @@ details summary{cursor:pointer;font-weight:600;min-height:32px;display:flex;alig
     <button class="btn" id="btnDisconnect" type="button" disabled>Odpojit</button>
   </div>
   <button class="btn" id="btnConnectAll" type="button">Nenašlo se? Ukázat všechna zařízení</button>
+  <button class="btn" id="btnConnectBare" type="button" style="min-height:44px;font-size:14px">Test: jen seznam zařízení (bez připojení ke službám)</button>
+  <button class="btn" id="btnCopyLogTop" type="button" style="min-height:44px;font-size:14px">Kopírovat záznam komunikace</button>
   <div class="card warnbox" id="help" hidden>
     <b>Seznam se neukázal nebo je prázdný?</b>
     <ol class="note" style="margin:8px 0 0;padding-left:18px">
@@ -141,14 +143,16 @@ details summary{cursor:pointer;font-weight:600;min-height:32px;display:flex;alig
 
 <script>
 const $=s=>document.querySelector(s);
-const SERVICES=['e7810a71-73ae-499d-8c15-faa9aef0c3f2',0xfff0,0xffe0,0x18f0,0xfff1];
+const U=x=>`0000${x}-0000-1000-8000-00805f9b34fb`;
+const SERVICES=['e7810a71-73ae-499d-8c15-faa9aef0c3f2',U('fff0'),U('ffe0'),U('18f0')];
+const errText=e=>{if(!e)return 'neznámá chyba';const p=[e.name,e.message].filter(Boolean).join(': ');let j='';try{j=JSON.stringify(e)}catch(_){}return p||String(e)||j||'neznámá chyba'};
 let dev=null,wChar=null,nChar=null,rxBuf='',waiter=null,busy=false,last=null;
 const enc=new TextEncoder(),dec=new TextDecoder();
 
 function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('show');clearTimeout(toast.t);toast.t=setTimeout(()=>t.classList.remove('show'),2500)}
 function log(msg,cls){const l=$('#log'),ts=new Date().toLocaleTimeString('cs-CZ');const line=document.createElement('div');if(cls)line.className=cls;line.textContent=`${ts} ${msg}`;l.appendChild(line);l.scrollTop=l.scrollHeight}
 function status(state,title,sub){const d=$('#dot');d.className='dot'+(state?' '+state:'');$('#stTitle').textContent=title;if(sub!==undefined)$('#stSub').textContent=sub}
-function setUi(){const c=!!wChar;$('#btnConnect').disabled=c||busy;$('#btnConnectAll').disabled=c||busy||!navigator.bluetooth;$('#btnDisconnect').disabled=!c||busy;$('#btnRead').disabled=!c||busy;$('#btnCmd').disabled=!c||busy;$('#btnShare').disabled=!last;$('#btnCopy').disabled=!last}
+function setUi(){const c=!!wChar;$('#btnConnect').disabled=c||busy;$('#btnConnectAll').disabled=c||busy||!navigator.bluetooth;$('#btnConnectBare').disabled=c||busy||!navigator.bluetooth;$('#btnDisconnect').disabled=!c||busy;$('#btnRead').disabled=!c||busy;$('#btnCmd').disabled=!c||busy;$('#btnShare').disabled=!last;$('#btnCopy').disabled=!last}
 
 if(!navigator.bluetooth){$('#noBt').hidden=false;$('#btnConnect').disabled=true}
 log('Prohlížeč: '+navigator.userAgent);log('Web Bluetooth: '+(navigator.bluetooth?'ano':'NE'));
@@ -160,7 +164,7 @@ async function connect(all){
   try{
     busy=true;setUi();$('#help').hidden=true;status('busy','Hledám adaptér…',all?'Vyber v seznamu vLinker (může mít i jiný název).':'Vyber v seznamu vLinker.');
     slow=setTimeout(()=>{$('#help').hidden=false},6000);
-    const opts=all?{acceptAllDevices:true,optionalServices:SERVICES}:{filters:[...NAMES.map(n=>({namePrefix:n})),{services:['e7810a71-73ae-499d-8c15-faa9aef0c3f2']},{services:[0xfff0]},{services:[0xffe0]}],optionalServices:SERVICES};
+    const opts=all==='bare'?{acceptAllDevices:true}:all?{acceptAllDevices:true,optionalServices:SERVICES}:{filters:[...NAMES.map(n=>({namePrefix:n})),{services:['e7810a71-73ae-499d-8c15-faa9aef0c3f2']},{services:[U('fff0')]},{services:[U('ffe0')]}],optionalServices:SERVICES};
     log('Hledám: '+(all?'všechna zařízení':'podle názvu/služby'));
     dev=await navigator.bluetooth.requestDevice(opts);clearTimeout(slow);
     dev.addEventListener('gattserverdisconnected',onDisc);
@@ -177,7 +181,7 @@ async function connect(all){
     await nChar.startNotifications();
     nChar.addEventListener('characteristicvaluechanged',e=>{rxBuf+=dec.decode(e.target.value);if(waiter&&rxBuf.includes('>')){const r=rxBuf;rxBuf='';const w=waiter;waiter=null;w.res(r)}});
     status('ok','Připojeno',dev.name||'adaptér');log('Připojeno.','ok');
-  }catch(e){clearTimeout(slow);log('Chyba připojení: '+e.name+': '+e.message,'er');status('err','Nepřipojeno',(e.name==='NotFoundError'?'Nic nevybráno nebo nenalezeno. ':'')+e.message);$('#help').hidden=false;$('#logBox').open=true;dev=null;wChar=null;nChar=null}
+  }catch(e){clearTimeout(slow);const t=errText(e);log('Chyba připojení: '+t,'er');status('err','Nepřipojeno','Chyba: '+t);$('#help').hidden=false;$('#logBox').open=true;dev=null;wChar=null;nChar=null}
   finally{busy=false;setUi()}
 }
 function onDisc(){log('Adaptér odpojen.','er');wChar=null;nChar=null;status('','Nepřipojeno','Spojení se ztratilo.');setUi()}
@@ -232,7 +236,7 @@ function loadHist(){try{return JSON.parse(localStorage.getItem('mereni')||'[]')}
 function saveHist(o){const h=loadHist();h.unshift(o);try{localStorage.setItem('mereni',JSON.stringify(h.slice(0,20)))}catch(e){}renderHist()}
 function renderHist(){const h=loadHist();$('#hist').innerHTML=h.length?h.map(o=>`<li><span>${new Date(o.cas).toLocaleString('cs-CZ',{day:'numeric',month:'numeric',hour:'2-digit',minute:'2-digit'})}</span><span>${o.soh_pct!=null?o.soh_pct.toLocaleString('cs-CZ')+' %':'–'} · ${o.tachometr_km!=null?o.tachometr_km.toLocaleString('cs-CZ')+' km':'–'}</span></li>`).join(''):'<li><span class="note">Zatím nic.</span></li>'}
 
-$('#btnConnect').addEventListener('click',()=>connect(false));$('#btnConnectAll').addEventListener('click',()=>connect(true));
+$('#btnConnect').addEventListener('click',()=>connect(false));$('#btnConnectAll').addEventListener('click',()=>connect(true));$('#btnConnectBare').addEventListener('click',()=>connect('bare'));$('#btnCopyLogTop').addEventListener('click',()=>copyText([...$('#log').children].map(d=>d.textContent).join('\n'),'Záznam zkopírován'));
 $('#btnDisconnect').addEventListener('click',disconnect);
 $('#btnRead').addEventListener('click',readAll);
 $('#btnShare').addEventListener('click',shareResult);
