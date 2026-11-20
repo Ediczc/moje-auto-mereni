@@ -2,6 +2,8 @@
 
 Testovací stránka pro čtení stavu baterie a tachometru z VW ID.4 přes adaptér vLinker MC+ (Bluetooth LE). Běží v prohlížeči Bluefy na iPhonu. Jen čte data, nic neodesílá na internet.
 
+Od verze 7 má záložku **Nabití**: stav před a po nabití (z auta nebo ručně), místo, nabíječka, kWh a u Tesla / Jiné cena → soubor `nabiti-*.json`, který se uloží do iCloud složky `MojeAuto` a appka Moje auto na Macu ho načte sama.
+
 ## Ověřeno na VW ID.4 (2021, 77 kWh) – 18. 11. 2026
 
 Adaptér: vLinker MC+ (BLE název `vLinker MC-IOS`, služba `18F0`, notify `2AF0`, write `2AF1`), prohlížeč Bluefy 3.9.3, iOS 18.7.

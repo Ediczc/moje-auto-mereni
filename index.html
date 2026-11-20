@@ -16,6 +16,7 @@
   --mono:ui-monospace,"SF Mono",Menlo,monospace;
 }
 *{box-sizing:border-box}
+[hidden]{display:none!important}
 html{background:var(--bg)}
 body{margin:0;min-height:100vh;color:var(--fg);font-family:var(--font);font-size:15px;line-height:1.45;-webkit-font-smoothing:antialiased;
   background:radial-gradient(60% 40% at 85% 0%,rgba(61,139,255,.28),transparent 70%),radial-gradient(50% 35% at 0% 100%,rgba(132,94,255,.18),transparent 70%),var(--bg);
@@ -56,6 +57,29 @@ details summary{cursor:pointer;font-weight:600;min-height:32px;display:flex;alig
 .hist{list-style:none;margin:8px 0 0;padding:0;font-size:13px}
 .hist li{display:flex;justify-content:space-between;gap:8px;padding:7px 0;border-top:1px solid var(--line);font-variant-numeric:tabular-nums}
 .hist li:first-child{border-top:0}
+.tabs{display:grid;grid-template-columns:1fr 1fr;gap:4px;padding:4px;border-radius:16px;background:var(--glass);border:1px solid var(--line)}
+.tabs button{min-height:44px;border-radius:12px;border:0;background:none;font-weight:600;font-size:15px;cursor:pointer;color:var(--muted)}
+.tabs button[aria-selected=true]{background:rgba(61,139,255,.35);color:var(--fg)}
+.stack{display:flex;flex-direction:column;gap:14px}
+.card>.k+*{margin-top:10px}
+.card>*+*{margin-top:10px}
+.fld{display:flex;flex-direction:column;gap:4px;font-size:12.5px;color:var(--muted);min-width:0}
+.fld .in{display:flex;align-items:center;gap:6px;background:rgba(0,0,0,.25);border:1px solid var(--line);border-radius:12px;min-height:48px;padding:0 12px}
+.fld .in.bad{border-color:var(--bad)}
+.fld input{flex:1;min-width:0;background:none;border:0;font-size:17px;color:var(--fg);outline:none;padding:0}
+.fld em{font-style:normal;color:var(--faint);font-size:14px}
+.opt{color:var(--faint);font-size:11.5px}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chips label{position:relative}
+.chips input{position:absolute;opacity:0;pointer-events:none}
+.chips span{display:inline-flex;align-items:center;min-height:44px;padding:0 15px;border-radius:12px;border:1px solid var(--line);background:rgba(255,255,255,.06);font-weight:600;cursor:pointer}
+.chips input:checked+span{background:rgba(61,139,255,.35);border-color:rgba(140,190,255,.7)}
+.chips input:focus-visible+span{outline:2px solid #8ab8ff;outline-offset:2px}
+.got{font-size:13px;color:var(--good);margin:0}
+.got:empty{display:none}
+.err{color:var(--bad);font-weight:600;margin:0}
+.err:empty{display:none}
+.hist button{border:0;background:none;padding:0;color:#8ab8ff;font-weight:600;cursor:pointer;text-decoration:underline}
 .toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translate(-50%,20px);opacity:0;background:#1f2a3d;border:1px solid var(--line);padding:10px 16px;border-radius:999px;font-weight:600;transition:all .3s;pointer-events:none;max-width:calc(100% - 32px);text-align:center}
 .toast.show{opacity:1;transform:translate(-50%,0)}
 </style>
@@ -64,7 +88,7 @@ details summary{cursor:pointer;font-weight:600;min-height:32px;display:flex;alig
 <div class="wrap">
   <header>
     <h1>Měření z auta</h1>
-    <p class="sub">VW ID.4 · vLinker MC+ · verze 6</p>
+    <p class="sub">VW ID.4 · vLinker MC+ · verze 7</p>
   </header>
 
   <div class="card warnbox" id="noBt" hidden>
@@ -94,6 +118,76 @@ details summary{cursor:pointer;font-weight:600;min-height:32px;display:flex;alig
       <li>Pomoct může vytáhnout vLinker ze zásuvky a za 5 vteřin ho vrátit.</li>
     </ol>
   </div>
+  <div class="tabs" role="tablist" aria-label="Co zapisuješ">
+    <button type="button" role="tab" data-tab="mereni" aria-selected="true">Měření</button>
+    <button type="button" role="tab" data-tab="nabiti" aria-selected="false">Nabití</button>
+  </div>
+
+  <section class="stack" id="tab-nabiti" hidden>
+    <div class="card warnbox" id="chResume" hidden>
+      <b id="chResumeT">Rozpracované nabití</b>
+      <div class="row"><button class="btn" id="chContinue" type="button">Pokračovat</button><button class="btn" id="chDrop" type="button">Zahodit</button></div>
+    </div>
+    <button class="btn primary" id="chStart" type="button">Začít nabití</button>
+    <p class="note" id="chIntro">Před nabitím načti stav z auta (nebo vyplň ručně), po nabití znovu. Rozpracované nabití vydrží i zavření Bluefy. Soubor ulož do Souborů › iCloud Drive › MojeAuto, appka na Macu ho načte sama.</p>
+
+    <form class="stack" id="chForm" hidden novalidate>
+      <div class="card">
+        <div class="k">1 · Před nabitím</div>
+        <button class="btn" type="button" id="chReadPred" disabled>Načíst z auta</button>
+        <p class="got" id="chPredInfo"></p>
+        <div class="row">
+          <label class="fld"><span>Tachometr <span class="opt">nepovinné</span></span><span class="in"><input name="km" inputmode="numeric" autocomplete="off"><em>km</em></span></label>
+          <label class="fld"><span>Baterie před <span class="opt">nepovinné</span></span><span class="in"><input name="pred" inputmode="decimal" autocomplete="off"><em>%</em></span></label>
+        </div>
+        <label class="fld"><span>Začátek nabití</span><span class="in"><input name="zacatek" type="datetime-local"></span></label>
+      </div>
+      <div class="card">
+        <div class="k">2 · Kde</div>
+        <div class="chips" role="radiogroup" aria-label="Kde">
+          <label><input type="radio" name="misto" value="prace"><span>Práce</span></label>
+          <label><input type="radio" name="misto" value="cez"><span>ČEZ</span></label>
+          <label><input type="radio" name="misto" value="eon"><span>E.ON</span></label>
+          <label><input type="radio" name="misto" value="pre"><span>PRE</span></label>
+          <label><input type="radio" name="misto" value="tesla"><span>Tesla</span></label>
+          <label><input type="radio" name="misto" value="jine"><span>Jiné</span></label>
+        </div>
+        <div id="chTypeBox">
+          <div class="k" style="margin-bottom:10px">Nabíječka</div>
+          <div class="chips" role="radiogroup" aria-label="Nabíječka">
+            <label><input type="radio" name="nabijecka" value="AC"><span>AC</span></label>
+            <label><input type="radio" name="nabijecka" value="DC"><span>DC</span></label>
+            <label><input type="radio" name="nabijecka" value="UFC"><span>UFC</span></label>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="k">3 · Po nabití</div>
+        <button class="btn" type="button" id="chReadPo" disabled>Načíst z auta</button>
+        <p class="got" id="chPoInfo"></p>
+        <label class="fld"><span>Baterie po <span class="opt">nepovinné</span></span><span class="in"><input name="po" inputmode="decimal" autocomplete="off"><em>%</em></span></label>
+      </div>
+      <div class="card">
+        <div class="k">4 · Nabito</div>
+        <div class="row">
+          <label class="fld"><span>Nabito <span class="opt">z appky nabíječky</span></span><span class="in"><input name="kwh" inputmode="decimal" autocomplete="off"><em>kWh</em></span></label>
+          <label class="fld" id="chPriceBox" hidden><span>Cena</span><span class="in"><input name="cena" inputmode="decimal" autocomplete="off"><em>Kč/kWh</em></span></label>
+        </div>
+        <p class="note" id="chPriceNote">Cenu doplní appka z ceníku podle času začátku.</p>
+        <label class="fld"><span>Poznámka <span class="opt">nepovinné</span></span><span class="in"><input name="poznamka" autocomplete="off" maxlength="500"></span></label>
+      </div>
+      <p class="err" id="chErr" role="alert"></p>
+      <button class="btn primary" type="submit">Uložit nabití do Souborů</button>
+      <button class="btn" type="button" id="chCancel">Zahodit rozpracované</button>
+    </form>
+
+    <div class="card">
+      <div class="k">Uložená nabití na tomto telefonu</div>
+      <ul class="hist" id="chHist"><li><span class="note">Zatím nic.</span></li></ul>
+    </div>
+  </section>
+
+  <section class="stack" id="tab-mereni">
   <button class="btn primary" id="btnRead" type="button" disabled>Přečíst baterii a tachometr</button>
 
   <div class="res">
@@ -118,6 +212,7 @@ details summary{cursor:pointer;font-weight:600;min-height:32px;display:flex;alig
     <div class="k">Poslední měření na tomto telefonu</div>
     <ul class="hist" id="hist"><li><span class="note">Zatím nic.</span></li></ul>
   </div>
+  </section>
 
   <div class="card">
     <details id="logBox">
@@ -153,7 +248,7 @@ const enc=new TextEncoder(),dec=new TextDecoder();
 function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('show');clearTimeout(toast.t);toast.t=setTimeout(()=>t.classList.remove('show'),2500)}
 function log(msg,cls){const l=$('#log'),ts=new Date().toLocaleTimeString('cs-CZ');const line=document.createElement('div');if(cls)line.className=cls;line.textContent=`${ts} ${msg}`;l.appendChild(line);l.scrollTop=l.scrollHeight}
 function status(state,title,sub){const d=$('#dot');d.className='dot'+(state?' '+state:'');$('#stTitle').textContent=title;if(sub!==undefined)$('#stSub').textContent=sub}
-function setUi(){const c=!!wChar;$('#btnConnect').disabled=c||busy;$('#btnConnectAll').disabled=c||busy||!navigator.bluetooth;$('#btnConnectBare').disabled=c||busy||!navigator.bluetooth;$('#btnDisconnect').disabled=!c||busy;$('#btnRead').disabled=!c||busy;$('#btnCmd').disabled=!c||busy;$('#btnShare').disabled=!last;$('#btnCopy').disabled=!last}
+function setUi(){chUi();const c=!!wChar;$('#btnConnect').disabled=c||busy;$('#btnConnectAll').disabled=c||busy||!navigator.bluetooth;$('#btnConnectBare').disabled=c||busy||!navigator.bluetooth;$('#btnDisconnect').disabled=!c||busy;$('#btnRead').disabled=!c||busy;$('#btnCmd').disabled=!c||busy;$('#btnShare').disabled=!last;$('#btnCopy').disabled=!last}
 
 if(!navigator.bluetooth){$('#noBt').hidden=false;$('#btnConnect').disabled=true}
 log('Prohlížeč: '+navigator.userAgent);log('Web Bluetooth: '+(navigator.bluetooth?'ano':'NE'));
@@ -201,8 +296,9 @@ async function send(cmd,timeout=4000){
 function hexOf(lines){return lines.filter(l=>!/^(SEARCHING|BUS INIT|OK|ELM|STOPPED)/i.test(l)).filter(l=>!/^[0-9A-F]{3}$/i.test(l.replace(/\s/g,''))).map(l=>l.replace(/^[0-9A-F]:\s*/i,'').replace(/\s/g,'')).join('').toUpperCase()}
 function payload(lines,sid){const h=hexOf(lines);const i=h.indexOf(sid);if(i<0){const neg=h.match(/7F22([0-9A-F]{2})/);return {err:neg?('záporná odpověď 7F 22 '+neg[1]):(h.includes('NODATA')?'žádná data':'neočekávaná odpověď')}}return {hex:h.slice(i+sid.length)}}
 
-async function readAll(){
-  busy=true;setUi();status('busy','Čtu z auta…','Chvilku to trvá.');$('#logBox').open=true;
+// one full read from the car; returns the measurement object (format D20) or null
+async function measure(){
+  busy=true;setUi();status('busy','Čtu z auta…','Chvilku to trvá.');
   const out={cas:new Date().toISOString(),zdroj:'vLinker MC+',jmenovita_kwh:+$('#nominal').value};
   try{
     await send('ATZ',6000);await new Promise(r=>setTimeout(r,800));
@@ -224,11 +320,13 @@ async function readAll(){
     if(odo){out.tachometr_km=odo.km;out.tachometr_zpusob=odo.how;out.raw_tachometr=odo.raw;
       $('#vOdo').className='v';$('#vOdo').innerHTML=`${odo.km.toLocaleString('cs-CZ')}<small>km</small>`;$('#dOdo').textContent='způsob: '+odo.how+' · porovnej s budíky';log(`Tachometr ${odo.km} km (${odo.how})`,'ok')}
     else{$('#dOdo').textContent='žádný způsob nevyšel – pošli záznam';log('Tachometr: žádný způsob nevyšel','er')}
-    if(out.soh_pct!=null||out.tachometr_km!=null||out.nabiti_bms_pct!=null){last=out;saveHist(out);status('ok','Hotovo','Výsledek můžeš uložit do Souborů.');toast('Změřeno')}
-    else status('err','Nic se nepřečetlo','Pošli mi záznam komunikace.');
-  }catch(e){log('Chyba: '+e.message,'er');status('err','Chyba čtení',e.message)}
+    if(out.soh_pct!=null||out.tachometr_km!=null||out.nabiti_bms_pct!=null){saveHist(out);status('ok','Hotovo','Načteno z auta.');return out}
+    status('err','Nic se nepřečetlo','Pošli mi záznam komunikace.');$('#logBox').open=true;
+  }catch(e){log('Chyba: '+e.message,'er');status('err','Chyba čtení',e.message);$('#logBox').open=true}
   finally{busy=false;setUi()}
+  return null;
 }
+async function readAll(){const out=await measure();if(out){last=out;setUi();status('ok','Hotovo','Výsledek můžeš uložit do Souborů.');toast('Změřeno')}}
 
 async function readOdometer(){
   const tries=[
@@ -250,16 +348,118 @@ async function readOdometer(){
   return null;
 }
 function csvOf(o){const k=['cas','soh_pct','vyuzitelna_kwh','jmenovita_kwh','nabiti_displej_pct','nabiti_bms_pct','tachometr_km','tachometr_zpusob','raw_2AB2','raw_tachometr','zdroj'];return k.join(';')+'\n'+k.map(x=>o[x]??'').join(';')+'\n'}
-async function shareResult(){
-  if(!last)return;const name=`mereni-${last.cas.slice(0,16).replace(/[:T]/g,'-')}.json`;const blob=new Blob([JSON.stringify(last,null,2)],{type:'application/json'});
-  try{const file=new File([blob],name,{type:'application/json'});if(navigator.canShare&&navigator.canShare({files:[file]})){await navigator.share({files:[file],title:'Měření z auta'});return}}catch(e){if(e.name==='AbortError')return;log('Sdílení: '+e.message,'er')}
-  try{const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();a.remove();toast('Stahuji soubor')}catch(e){toast('Uložení nejde, použij Kopírovat');log('Stažení: '+e.message,'er')}
+// share a JSON file (iOS: Save to Files › iCloud › MojeAuto); true = shared or downloaded
+async function shareFile(obj,name,title){
+  const blob=new Blob([JSON.stringify(obj,null,2)],{type:'application/json'});
+  try{const file=new File([blob],name,{type:'application/json'});if(navigator.canShare&&navigator.canShare({files:[file]})){await navigator.share({files:[file],title});return true}}catch(e){if(e.name==='AbortError')return false;log('Sdílení: '+e.message,'er')}
+  try{const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();a.remove();toast('Stahuji soubor');return true}catch(e){toast('Uložení nejde');log('Stažení: '+e.message,'er');return false}
 }
+async function shareResult(){if(!last)return;await shareFile(last,`mereni-${last.cas.slice(0,16).replace(/[:T]/g,'-')}.json`,'Měření z auta')}
 async function copyText(t,okMsg){try{await navigator.clipboard.writeText(t);toast(okMsg)}catch(e){const ta=document.createElement('textarea');ta.value=t;document.body.appendChild(ta);ta.select();try{document.execCommand('copy');toast(okMsg)}catch(_){toast('Kopírování nejde')}ta.remove()}}
 
 function loadHist(){try{return JSON.parse(localStorage.getItem('mereni')||'[]')}catch(e){return[]}}
 function saveHist(o){const h=loadHist();h.unshift(o);try{localStorage.setItem('mereni',JSON.stringify(h.slice(0,20)))}catch(e){}renderHist()}
 function renderHist(){const h=loadHist();$('#hist').innerHTML=h.length?h.map(o=>`<li><span>${new Date(o.cas).toLocaleString('cs-CZ',{day:'numeric',month:'numeric',hour:'2-digit',minute:'2-digit'})}</span><span>SoH ${o.soh_pct!=null?o.soh_pct.toLocaleString('cs-CZ')+' %':'–'} · ${o.tachometr_km!=null?o.tachometr_km.toLocaleString('cs-CZ')+' km':'–'}${o.nabiti_displej_pct!=null?' · '+o.nabiti_displej_pct+' %':''}</span></li>`).join(''):'<li><span class="note">Zatím nic.</span></li>'}
+
+/* ---- Nabití (D37): před → kde → nabíječka → po → kWh/cena → soubor nabiti-*.json ---- */
+const CH_KEY='nabiti-rozpracovane',CH_HIST='nabiti-historie',PRICED=['prace','cez','eon','pre'];
+let ch=null;
+const F=()=>$('#chForm');
+const pad=n=>String(n).padStart(2,'0');
+function localIso(d){return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`}
+function uuid(){if(window.crypto&&crypto.randomUUID)return crypto.randomUUID();const b=new Uint8Array(16);crypto.getRandomValues(b);b[6]=b[6]&15|64;b[8]=b[8]&63|128;const h=[...b].map(x=>x.toString(16).padStart(2,'0')).join('');return `${h.slice(0,8)}-${h.slice(8,12)}-${h.slice(12,16)}-${h.slice(16,20)}-${h.slice(20)}`}
+function chStore(){try{if(ch)localStorage.setItem(CH_KEY,JSON.stringify(ch));else localStorage.removeItem(CH_KEY)}catch(e){}}
+function chLoad(){try{return JSON.parse(localStorage.getItem(CH_KEY)||'null')}catch(e){return null}}
+// '32,4' → '32.4' (string, no float – D9/D21); '' → null; invalid → NaN
+function num(text,scale){const s=String(text??'').replace(/[\s\u00a0]/g,'');if(!s)return null;const m=/^(\d+)(?:[.,](\d+))?$/.exec(s);if(!m||(m[2]||'').length>scale)return NaN;return m[2]?`${m[1]}.${m[2]}`:m[1]}
+const FIELDS=['zacatek','km','pred','po','kwh','cena','poznamka'];
+function chFromForm(){if(!ch)return;const f=F();for(const n of FIELDS)ch[n]=f.elements[n].value;for(const n of ['misto','nabijecka']){const r=f.querySelector(`[name=${n}]:checked`);ch[n]=r?r.value:null}}
+function chToForm(){const f=F();for(const n of FIELDS)f.elements[n].value=ch[n]||'';for(const n of ['misto','nabijecka'])f.querySelectorAll(`[name=${n}]`).forEach(r=>{r.checked=r.value===ch[n]});chUi()}
+function fmtTime(iso){const d=new Date(iso);return d.toLocaleString('cs-CZ',{day:'numeric',month:'numeric',hour:'2-digit',minute:'2-digit'})}
+function gotText(m){if(!m)return '';const p=[`Načteno ${fmtTime(m.cas)}`];if(m.nabiti_displej_pct!=null)p.push(m.nabiti_displej_pct+' %');if(m.tachometr_km!=null)p.push(m.tachometr_km.toLocaleString('cs-CZ')+' km');return p.join(' · ')}
+function chUi(){
+  const on=!!ch&&!F().hidden;
+  $('#chReadPred').disabled=$('#chReadPo').disabled=!wChar||busy;
+  if(!ch)return;
+  const m=ch.misto,priced=!m||PRICED.includes(m);
+  $('#chTypeBox').hidden=m==='prace';
+  $('#chPriceBox').hidden=priced;
+  $('#chPriceNote').textContent=m==='prace'?'Práce je vždy AC, cenu doplní appka z ceníku.':priced?'Cenu doplní appka z ceníku podle času začátku.':'Cenu za kWh opiš z aplikace nabíječky.';
+  $('#chPredInfo').textContent=gotText(ch.predM);$('#chPoInfo').textContent=gotText(ch.poM);
+  if(on&&!wChar){$('#chReadPred').textContent=$('#chReadPo').textContent='Načíst z auta (nejdřív připoj vLinker nahoře)'}
+  else{$('#chReadPred').textContent=$('#chReadPo').textContent='Načíst z auta'}
+}
+function chShow(){
+  const saved=!ch&&chLoad();
+  $('#chResume').hidden=!saved;
+  if(saved)$('#chResumeT').textContent=`Pokračovat v nabití z ${saved.zacatek?fmtTime(saved.zacatek):'?'}?`;
+  $('#chStart').hidden=!!ch||!!saved;$('#chIntro').hidden=!!ch;
+  F().hidden=!ch;
+  if(ch)chToForm();
+  chRenderHist();
+}
+function chStart(){ch={id:uuid(),zacatek:localIso(new Date()),misto:null,nabijecka:null,km:'',pred:'',po:'',kwh:'',cena:'',poznamka:'',predM:null,poM:null};chStore();$('#chErr').textContent='';chShow()}
+function chDrop(){if(!confirm('Zahodit rozpracované nabití?'))return;ch=null;chStore();chShow()}
+async function chRead(side){
+  const m=await measure();if(!m||!ch)return;chFromForm();
+  if(side==='pred'){ch.predM=m;ch.zacatek=localIso(new Date(m.cas));if(m.tachometr_km!=null)ch.km=String(m.tachometr_km);if(m.nabiti_displej_pct!=null)ch.pred=String(m.nabiti_displej_pct)}
+  else{ch.poM=m;if(m.nabiti_displej_pct!=null)ch.po=String(m.nabiti_displej_pct);if(!ch.km&&m.tachometr_km!=null)ch.km=String(m.tachometr_km)}
+  chStore();chToForm();toast(side==='pred'?'Stav před nabitím načten':'Stav po nabití načten');
+}
+function chBuild(){
+  chFromForm();const f=F(),err=[];
+  f.querySelectorAll('.in.bad').forEach(b=>b.classList.remove('bad'));
+  const bad=n=>f.elements[n].closest('.in').classList.add('bad');
+  if(!ch.misto)err.push('Vyber, kde nabíjíš.');
+  else if(ch.misto!=='prace'&&!ch.nabijecka)err.push('Vyber nabíječku.');
+  const kwh=num(ch.kwh,3);if(kwh===null||Number.isNaN(kwh)||!(Number(kwh)>0)){err.push('Vyplň nabito kWh (např. 32,4).');bad('kwh')}
+  let cena=null;if(ch.misto&&!PRICED.includes(ch.misto)){cena=num(ch.cena,2);if(cena===null||Number.isNaN(cena)){err.push('Vyplň cenu Kč/kWh (např. 13,50).');bad('cena')}}
+  const km=num(ch.km,0);if(Number.isNaN(km)){err.push('Tachometr: celé číslo km.');bad('km')}
+  const pct=n=>{const v=num(ch[n],1);if(Number.isNaN(v)||(v!==null&&Number(v)>100)){err.push(`Baterie ${n==='pred'?'před':'po'}: 0–100 %.`);bad(n);return null}return v};
+  const pred=pct('pred'),po=pct('po');
+  const start=ch.zacatek?new Date(ch.zacatek):null;if(!start||isNaN(start)){err.push('Vyplň začátek nabití.');bad('zacatek')}
+  if(err.length)return {err};
+  // source of each value: 'obd' when it is still what the car reported, else 'rucne'
+  const src=(v,key,...ms)=>v===null?null:(ms.some(m=>m&&m[key]!=null&&String(m[key])===v)?'obd':'rucne');
+  return {obj:{typ:'nabiti',verze:1,id:ch.id,zacatek:start.toISOString(),konec:ch.poM?ch.poM.cas:null,
+    misto:ch.misto,nabijecka:ch.misto==='prace'?null:ch.nabijecka,kwh,cena_kc_kwh:cena,
+    tachometr_km:km,tachometr_zdroj:src(km,'tachometr_km',ch.predM,ch.poM),
+    pred:{mereni:ch.predM||null,nabiti_pct:pred,zdroj:src(pred,'nabiti_displej_pct',ch.predM)},
+    po:{mereni:ch.poM||null,nabiti_pct:po,zdroj:src(po,'nabiti_displej_pct',ch.poM)},
+    poznamka:(ch.poznamka||'').trim()}};
+}
+function chName(o){return `nabiti-${localIso(new Date(o.zacatek)).replace(/[:T]/g,'-')}.json`}
+async function chSubmit(e){
+  e.preventDefault();const r=chBuild();
+  if(r.err){$('#chErr').textContent=r.err.join(' ');return}
+  $('#chErr').textContent='';chStore();
+  if(!await shareFile(r.obj,chName(r.obj),'Nabití'))return;   // cancelled → keep the draft
+  let h=[];try{h=JSON.parse(localStorage.getItem(CH_HIST)||'[]')}catch(_){}
+  h=[r.obj,...h.filter(x=>x.id!==r.obj.id)].slice(0,10);
+  try{localStorage.setItem(CH_HIST,JSON.stringify(h))}catch(_){}
+  ch=null;chStore();chShow();toast('Nabití uloženo');
+}
+const PLACE_NAMES={prace:'Práce',cez:'ČEZ',eon:'E.ON',pre:'PRE',tesla:'Tesla',jine:'Jiné'};
+function chRenderHist(){
+  let h=[];try{h=JSON.parse(localStorage.getItem(CH_HIST)||'[]')}catch(e){}
+  const ul=$('#chHist');ul.innerHTML='';
+  if(!h.length){ul.innerHTML='<li><span class="note">Zatím nic.</span></li>';return}
+  h.forEach((o,i)=>{const li=document.createElement('li');const a=document.createElement('span');
+    a.textContent=`${fmtTime(o.zacatek)} · ${PLACE_NAMES[o.misto]||o.misto}${o.nabijecka?' '+o.nabijecka:''} · ${String(o.kwh).replace('.',',')} kWh`;
+    const b=document.createElement('button');b.type='button';b.textContent='Uložit znovu';b.addEventListener('click',()=>shareFile(o,chName(o),'Nabití'));
+    li.append(a,b);ul.appendChild(li)});
+}
+function tab(name){for(const t of ['mereni','nabiti']){$('#tab-'+t).hidden=t!==name;$(`[data-tab=${t}]`).setAttribute('aria-selected',String(t===name))}try{localStorage.setItem('zalozka',name)}catch(e){}chUi()}
+document.querySelectorAll('[data-tab]').forEach(b=>b.addEventListener('click',()=>tab(b.dataset.tab)));
+$('#chStart').addEventListener('click',chStart);
+$('#chContinue').addEventListener('click',()=>{ch=chLoad();chShow()});
+$('#chDrop').addEventListener('click',()=>{try{localStorage.removeItem(CH_KEY)}catch(e){}chShow()});
+$('#chCancel').addEventListener('click',chDrop);
+$('#chReadPred').addEventListener('click',()=>chRead('pred'));
+$('#chReadPo').addEventListener('click',()=>chRead('po'));
+F().addEventListener('submit',chSubmit);
+const chChange=()=>{if(!ch)return;chFromForm();chStore();chUi()};
+F().addEventListener('input',chChange);F().addEventListener('change',chChange);
 
 $('#btnConnect').addEventListener('click',()=>connect(false));$('#btnConnectAll').addEventListener('click',()=>connect(true));$('#btnConnectBare').addEventListener('click',()=>connect('bare'));$('#btnCopyLogTop').addEventListener('click',()=>copyText([...$('#log').children].map(d=>d.textContent).join('\n'),'Záznam zkopírován'));
 $('#btnDisconnect').addEventListener('click',disconnect);
@@ -271,7 +471,9 @@ $('#btnClearLog').addEventListener('click',()=>{$('#log').innerHTML=''});
 $('#btnCmd').addEventListener('click',async()=>{const c=$('#cmd').value.trim().toUpperCase();if(!c)return;if(!/^(AT|22|01|09|10 ?03|1003)/.test(c.replace(/\s/g,''))){toast('Povolené jsou jen čtecí příkazy');return}busy=true;setUi();try{await send(c.replace(/\s/g,''),6000)}catch(e){log(e.message,'er')}busy=false;setUi()});
 try{const n=localStorage.getItem('nominal');if(n)$('#nominal').value=n}catch(e){}
 $('#nominal').addEventListener('change',e=>{try{localStorage.setItem('nominal',e.target.value)}catch(_){}});
-renderHist();setUi();
+renderHist();chShow();
+{let z=null;try{z=localStorage.getItem('zalozka')}catch(e){}tab(chLoad()?'nabiti':(z==='nabiti'?'nabiti':'mereni'))}
+setUi();
 </script>
 </body>
 </html>
