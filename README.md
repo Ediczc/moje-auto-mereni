@@ -1,8 +1,15 @@
 # Měření z auta
 
-Testovací stránka pro čtení stavu baterie a tachometru z VW ID.4 přes adaptér vLinker MC+ (Bluetooth LE). Běží v prohlížeči Bluefy na iPhonu. Jen čte data, nic neodesílá na internet.
+Testovací stránka pro čtení stavu baterie a tachometru z VW ID.4 přes adaptér vLinker MC+ (Bluetooth LE). Běží v prohlížeči Bluefy na iPhonu. Jen čte data, do auta nic nezapisuje a nic neodesílá na internet.
 
-Od verze 7 má záložku **Nabití**: stav před a po nabití (z auta nebo ručně), místo, nabíječka, kWh a u Tesla / Jiné cena → soubor `nabiti-*.json`, který se uloží do iCloud složky `MojeAuto` a appka Moje auto na Macu ho načte sama.
+Od verze 8 vypadá a ovládá se jako appka: spodní lišta **Auto · Nabití · Historie · Více**, stav spojení vpravo nahoře.
+
+- **Auto** – nabití baterie (kruh se stářím údaje), tachometr, SoH; „Načíst z auta“ se samo připojí (nejdřív zkusí už povolený vLinker přes `getDevices()`, jinak výběr zařízení), potom „Uložit měření do iCloudu“.
+- **Nabití** ve 3 krocích: Před (stav z auta nebo ručně, místo, nabíječka, začátek) → Nabíjí se (čas od začátku, klidně zavři Bluefy) → Po (stav po, kWh, u Tesla / Jiné cena, poznámka) → soubor `nabiti-*.json` do iCloud složky `MojeAuto`, appka Moje auto na Macu ho načte sama. Rozpracované nabití přežije zavření Bluefy.
+- **Historie** – měření i nabití z tohoto telefonu, stav Uloženo / Neuloženo, klepnutí = uložit znovu.
+- **Více** – připojení vLinkeru a nápověda, jmenovitá kapacita, záznam komunikace, vlastní příkaz.
+
+Ceny ani ceník stránka neukazuje – cenu doplní appka na Macu. Formát souborů je stejný jako ve verzi 7. Písmo Outfit je ve složce `fonts/` (SIL OFL 1.1, `fonts/OFL-outfit.txt`), stránka nic nenačítá z internetu.
 
 ## Ověřeno na VW ID.4 (2021, 77 kWh) – 18. 11. 2026
 
