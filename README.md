@@ -9,6 +9,8 @@ Od verze 8 vypadá a ovládá se jako appka: spodní lišta **Auto · Nabití ·
 - **Historie** – měření i nabití z tohoto telefonu, stav Uloženo / Neuloženo, klepnutí = uložit znovu.
 - **Více** – připojení vLinkeru a nápověda, jmenovitá kapacita, záznam komunikace, vlastní příkaz.
 
+**Verze 9:** při kroku Po stránka zjistí polohu telefonu (u nabíječky) a uloží ji k nabití (`"poloha"`, nepovinné; appka z ní určí obec a teplotu podle místa). Když ji Bluefy nepovolí, nabití se uloží bez ní; ve Více je tlačítko **Vyzkoušet polohu**. Poloha jde jen do souboru, nikam na internet.
+
 Ceny ani ceník stránka neukazuje – cenu doplní appka na Macu. Formát souborů je stejný jako ve verzi 7. Písmo Outfit je ve složce `fonts/` (SIL OFL 1.1, `fonts/OFL-outfit.txt`), stránka nic nenačítá z internetu.
 
 ## Ověřeno na VW ID.4 (2021, 77 kWh) – 18. 11. 2026

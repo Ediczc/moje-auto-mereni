@@ -7,8 +7,9 @@
 <meta name="theme-color" content="#141a26">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <style>
-/* Měřicí stránka jako appka (verze 8, mockup mereni-v2): horní lišta se stavem spojení,
-   obrazovky Auto · Nabití · Historie · Více, spodní lišta. Čtení z auta a formát souborů jako ve verzi 7 (D20, D37). */
+/* Měřicí stránka jako appka (verze 9, mockup mereni-v2): horní lišta se stavem spojení,
+   obrazovky Auto · Nabití · Historie · Více, spodní lišta. Čtení z auta a formát souborů jako ve verzi 7 (D20, D37).
+   Verze 9 (Zadání 18): k nabití nepovinná poloha z telefonu `"poloha"` – formát souboru zůstává verze 1. */
 @font-face{font-family:"Outfit";font-style:normal;font-weight:100 900;font-display:swap;src:url(fonts/outfit-latin-wght-normal.woff2) format("woff2");unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD}
 @font-face{font-family:"Outfit";font-style:normal;font-weight:100 900;font-display:swap;src:url(fonts/outfit-latin-ext-wght-normal.woff2) format("woff2");unicode-range:U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF}
 :root{
@@ -334,7 +335,7 @@ details summary{cursor:pointer;font-weight:600;min-height:32px;display:flex;alig
       <label class="fld huge"><span>Nabito – z appky nabíječky</span><span class="in"><input name="kwh" inputmode="decimal" placeholder="0,0" autocomplete="off"><em>kWh</em></span></label>
       <label class="fld" id="priceBox" hidden><span>Cena – opiš z appky nabíječky</span><span class="in"><input name="cena" inputmode="decimal" placeholder="13,50" autocomplete="off"><em>Kč/kWh</em></span></label>
       <label class="fld"><span>Poznámka <span class="opt">nepovinné</span></span><span class="in"><input name="poznamka" class="txt" autocomplete="off" maxlength="500"></span></label>
-      <div class="card"><ul class="facts" id="sum"></ul></div>
+      <div class="card"><ul class="facts" id="sum"></ul><p class="sub" id="geoLine" aria-live="polite"></p></div>
       <p class="err" id="err3" role="alert"></p>
       <button class="btn p" id="save" type="submit" disabled><svg><use href="#i-cloud"/></svg><span>Uložit do iCloudu</span></button>
       <button class="btn ghost" id="back2" type="button">Zpět</button>
@@ -369,6 +370,7 @@ details summary{cursor:pointer;font-weight:600;min-height:32px;display:flex;alig
       <li><label><b>Jmenovitá kapacita</b><span id="nominalT">77 kWh</span><svg><use href="#i-chev"/></svg>
         <select id="nominal" aria-label="Jmenovitá kapacita baterie"><option value="77">77 kWh (Pro / Pro Performance)</option><option value="52">52 kWh (Pure)</option></select></label></li>
       <li><button type="button" data-sheet><b>Zařízení se nenašlo?</b><span>nápověda</span><svg><use href="#i-chev"/></svg></button></li>
+      <li><button type="button" id="btnGeo"><b>Vyzkoušet polohu</b><span id="geoTest">pro obec u nabití</span><svg><use href="#i-chev"/></svg></button></li>
     </ul>
   </div>
   <p class="note" style="text-align:left;margin-top:8px">Stav baterie = změřená využitelná kapacita ÷ jmenovitá.</p>
@@ -384,7 +386,7 @@ details summary{cursor:pointer;font-weight:600;min-height:32px;display:flex;alig
       <div class="cmdrow"><input type="text" id="cmd" placeholder="ATRV" autocomplete="off" autocapitalize="characters" spellcheck="false"><button class="btn sm" id="btnCmd" type="button" disabled>Odeslat</button></div>
     </details>
   </div>
-  <p class="note">Verze 8 · stránka jen čte, do auta nic nezapisuje. Neměř za jízdy. Kapacita podle CellPulse (ID.4 2021), tachometr (MEB 17FC0076) a nabití podle evDash, ověřeno na tomto autě 18. 11. 2026.</p>
+  <p class="note">Verze 9 · stránka jen čte, do auta nic nezapisuje. Neměř za jízdy. Kapacita podle CellPulse (ID.4 2021), tachometr (MEB 17FC0076) a nabití podle evDash, ověřeno na tomto autě 18. 11. 2026.</p>
 </main>
 
 <nav class="tabs" aria-label="Menu"><div>
@@ -699,10 +701,41 @@ function chRender(){
   const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
   $('#sum').innerHTML=li('Kde',esc(placeLabel()||'–'))+li('Baterie',`${ch.pred?esc(dec1(ch.pred))+' %':'?'} → ${ch.po?esc(dec1(ch.po))+' %':'?'}`)+li('Nabito',kwhOk?dec1(kwh)+' kWh':'–')
     +(priced?li('Cena','doplní appka z ceníku',true):li('Cena',ch.cena?esc(ch.cena)+' Kč/kWh':'–'));
+  $('#geoLine').textContent=geoText();
 }
 function tick(){if(!ch||!ch.started)return;const t=elapsed();$('#tClock').textContent=t;$('#lbTime').textContent=t}
 setInterval(tick,15000);document.addEventListener('visibilitychange',()=>{if(!document.hidden){tick();renderCar()}});
 function chEnsure(){if(!ch){ch=chNew();savedName=''}return ch}
+
+/* ---- poloha (verze 9, Zadání 18): nepovinná, nabití se uloží i bez ní ----
+   Zjišťuje se při kroku 3 (stojíš u nabíječky), ne až po klepnutí na Uložit: sdílení souboru
+   potřebuje čerstvé klepnutí a 8 s čekání na GPS by ho v Safari/Bluefy rozbilo. */
+const GEO_TIMEOUT=8000,GEO_MAX_AGE=600000;
+let geoPending=null;
+function getPos(){
+  if(!navigator.geolocation)return Promise.resolve({err:'telefon polohu neumí'});
+  return new Promise(res=>navigator.geolocation.getCurrentPosition(
+    p=>res({lat:p.coords.latitude.toFixed(5),lon:p.coords.longitude.toFixed(5),presnost_m:String(Math.round(p.coords.accuracy))}),
+    e=>res({err:e.code===1?'přístup k poloze zamítnut':e.code===3?'poloha nepřišla včas':'poloha nedostupná'}),
+    {enableHighAccuracy:true,timeout:GEO_TIMEOUT,maximumAge:GEO_MAX_AGE}));
+}
+function geoText(){
+  if(!ch)return '';
+  if(ch.poloha)return `📍 poloha uložena ±${ch.poloha.presnost_m} m`;
+  if(geoPending)return '📍 zjišťuji polohu…';
+  return ch.polohaChyba?`poloha nedostupná (${ch.polohaChyba})`:'';
+}
+function chGeo(){
+  if(!ch||geoPending||ch.poloha)return geoPending||Promise.resolve();
+  const id=ch.id;
+  geoPending=getPos().then(r=>{geoPending=null;if(!ch||ch.id!==id)return;
+    if(r.err){ch.polohaChyba=r.err}else{ch.poloha=r;ch.polohaChyba=null}
+    chStore();$('#geoLine').textContent=geoText()});
+  $('#geoLine').textContent=geoText();
+  return geoPending;
+}
+// při uložení: čeká se nanejvýš chvilku, ať sdílení nepřijde o klepnutí
+function chGeoQuick(){if(!geoPending)return Promise.resolve();return Promise.race([geoPending,new Promise(r=>setTimeout(r,1200))])}
 function chChange(){chEnsure();chFromForm();chStore();chRender()}
 function chGo2(){
   chFromForm();if(!ch.misto||(ch.misto!=='prace'&&!ch.nabijecka))return;
@@ -741,11 +774,11 @@ function chBuild(){
     tachometr_km:km,tachometr_zdroj:src(km,'tachometr_km',ch.predM,ch.poM),
     pred:{mereni:ch.predM||null,nabiti_pct:pred,zdroj:src(pred,'nabiti_displej_pct',ch.predM)},
     po:{mereni:ch.poM||null,nabiti_pct:po,zdroj:src(po,'nabiti_displej_pct',ch.poM)},
-    poznamka:(ch.poznamka||'').trim()}};
+    poznamka:(ch.poznamka||'').trim(),...(ch.poloha?{poloha:{lat:ch.poloha.lat,lon:ch.poloha.lon,presnost_m:ch.poloha.presnost_m}}:{})}};
 }
 function chName(o){return `nabiti-${localIso(new Date(o.zacatek)).replace(/[:T]/g,'-')}.json`}
 async function chSubmit(e){
-  e.preventDefault();if(!ch)return;const r=chBuild();
+  e.preventDefault();if(!ch)return;await chGeoQuick();const r=chBuild();
   if(r.err){$('#err3').textContent=r.err.join(' ');return}
   $('#err3').textContent='';chStore();
   const b=$('#save');b.disabled=true;
@@ -796,7 +829,10 @@ $('#readPre').addEventListener('click',()=>chRead('pred'));
 $('#readPost').addEventListener('click',()=>chRead('po'));
 $('#go2').addEventListener('click',chGo2);
 $('#edit1').addEventListener('click',()=>{ch.step=1;chStore();chRender();scrollTo(0,0)});
-$('#go3').addEventListener('click',()=>{ch.step=3;chStore();chRender();scrollTo(0,0)});
+$('#go3').addEventListener('click',()=>{ch.step=3;chStore();chRender();scrollTo(0,0);chGeo()});
+$('#btnGeo').addEventListener('click',async()=>{const t=$('#geoTest');t.textContent='zjišťuji…';const r=await getPos();
+  if(r.err){t.textContent=r.err;log('Poloha: '+r.err,'er');toast('Poloha nedostupná')}
+  else{t.textContent=`±${r.presnost_m} m`;log(`Poloha: ${r.lat}, ${r.lon} ±${r.presnost_m} m`);toast(`Poloha funguje · ±${r.presnost_m} m`)}});
 $('#back2').addEventListener('click',()=>{ch.step=2;chStore();$('#err3').textContent='';chRender();scrollTo(0,0)});
 $('#drop').addEventListener('click',chDrop);
 $('#newCh').addEventListener('click',()=>{savedName='';chRender();go('auto')});
@@ -805,6 +841,7 @@ $('#newCh').addEventListener('click',()=>{savedName='';chRender();go('auto')});
 ch=chLoad();
 if(ch){if(!ch.step){ch.step=ch.poM||ch.kwh?3:2;ch.started=true}if(ch.zacatekRucne==null)ch.zacatekRucne=true;chToForm()}
 chRender();renderAll();setUi();
+if(ch&&ch.step===3)chGeo();
 go(ch&&ch.started?'auto':(['auto','nabiti','historie','vice'].includes(store.get('zalozka',''))?store.get('zalozka'):'auto'));
 </script>
 </body>
